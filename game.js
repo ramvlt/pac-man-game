@@ -1,3 +1,18 @@
+// ============================================================================
+// Pac-Man Game — Core Logic (HTML5 Canvas)
+// ----------------------------------------------------------------------------
+// This file implements the complete gameplay loop: state management, input,
+// movement/AI, collision detection, rendering, and UI updates. The game runs on
+// a fixed-size grid where each tile maps to canvas pixels by TILE_SIZE.
+//
+// Key concepts:
+// - The map is a 2D grid with encoded tile types (see `gameMap` below).
+// - Positions for Pac‑Man and ghosts are stored in grid coordinates (floats).
+// - Movement is continuous; collision checks round to nearest grid cell.
+// - The render loop uses requestAnimationFrame; `deltaTime` drives timers.
+// - Ghosts pick directions based on a simple heuristic (chase / scatter / flee).
+// ============================================================================
+
 // Game Constants
 const TILE_SIZE = 20;
 const CANVAS_WIDTH = 560;
@@ -6,6 +21,7 @@ const GRID_WIDTH = CANVAS_WIDTH / TILE_SIZE;
 const GRID_HEIGHT = CANVAS_HEIGHT / TILE_SIZE;
 
 // Game States
+// NOTE: `gameState` is used to gate logic inside the game loop and input.
 const GAME_STATES = {
     START: 'start',
     PLAYING: 'playing',
@@ -15,12 +31,22 @@ const GAME_STATES = {
 };
 
 // Canvas Setup
+// The canvas is sized to the full maze area derived from grid and tile size.
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 canvas.width = CANVAS_WIDTH;
 canvas.height = CANVAS_HEIGHT;
 
-// Game Map (1 = wall, 0 = pellet, 2 = power pellet, 3 = empty)
+// Game Map
+// Encoding per cell:
+// 1 = wall (impassable)
+// 0 = regular pellet (collect for +10)
+// 2 = power pellet (collect for +50 and enable power mode)
+// 3 = empty (already collected / ghost house void)
+//
+// IMPORTANT:
+// - The central area with many `3`s represents the ghost house; pellets are not
+//   restored there on reset (see `resetGame`).
 const gameMap = [
     [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1],
@@ -56,6 +82,8 @@ const gameMap = [
 ];
 
 // Game State
+// These variables represent the live session state. `highScore` is persisted
+// in localStorage and read back on init.
 let gameState = GAME_STATES.START;
 let score = 0;
 let highScore = localStorage.getItem('pacmanHighScore') || 0;
@@ -64,6 +92,8 @@ let pelletCount = 0;
 let collectedPellets = 0;
 
 // Pac-Man
+// Position is in grid units (floats). `direction` is the current motion vector;
+// `nextDirection` is buffered input applied when the next step is valid.
 const pacman = {
     x: 14,
     y: 23,
@@ -75,6 +105,8 @@ const pacman = {
 };
 
 // Ghosts
+// Each ghost tracks its own position, starting location, color, current
+// direction, behavior `mode`, and a `scatterTarget` tile used when not chasing.
 const ghosts = [
     { x: 13, y: 14, color: '#FF0000', startX: 13, startY: 14, direction: { x: 0, y: -1 }, mode: 'chase', scatterTarget: { x: 25, y: 1 } },
     { x: 14, y: 14, color: '#FFB8FF', startX: 14, startY: 14, direction: { x: 0, y: -1 }, mode: 'chase', scatterTarget: { x: 2, y: 1 } },
@@ -87,11 +119,18 @@ let powerModeTimer = 0;
 const POWER_MODE_DURATION = 7000; // 7 seconds
 
 // Animation
+// `lastTime` provides frame-to-frame `deltaTime` (ms). Ghosts step on a coarse
+// interval (`GHOST_MOVE_INTERVAL`) to feel more grid-snappy than Pac‑Man.
 let lastTime = 0;
 let ghostMoveTimer = 0;
 const GHOST_MOVE_INTERVAL = 200;
 
-// Initialize
+/**
+ * Initialize the game.
+ * - Counts pellets in the current map (for win condition)
+ * - Hydrates UI with persisted high score
+ * - Wires up input event listeners
+ */
 function init() {
     // Count pellets
     pelletCount = 0;
@@ -111,7 +150,11 @@ function init() {
     document.getElementById('restartBtn').addEventListener('click', restartGame);
 }
 
-// Handle Key Press
+/**
+ * Keyboard input handler.
+ * Space from START begins the game. While PLAYING, arrow keys update
+ * `nextDirection` so the character turns at the next valid opportunity.
+ */
 function handleKeyPress(e) {
     if (e.code === 'Space' && gameState === GAME_STATES.START) {
         startGame();
@@ -144,7 +187,10 @@ function handleKeyPress(e) {
     }
 }
 
-// Start Game
+/**
+ * Transition to PLAYING state and kick off the main loop.
+ * If coming from START / GAME_OVER / WIN, reset the run first.
+ */
 function startGame() {
     if (gameState === GAME_STATES.START || gameState === GAME_STATES.GAME_OVER || gameState === GAME_STATES.WIN) {
         resetGame();
@@ -154,7 +200,10 @@ function startGame() {
     requestAnimationFrame(gameLoop);
 }
 
-// Toggle Pause
+/**
+ * Toggle pause state. While paused, we show an overlay and halt the loop
+ * by early-returning in `gameLoop`.
+ */
 function togglePause() {
     if (gameState === GAME_STATES.PLAYING) {
         gameState = GAME_STATES.PAUSED;
@@ -166,13 +215,19 @@ function togglePause() {
     }
 }
 
-// Restart Game
+/**
+ * Full restart: reset then immediately start.
+ */
 function restartGame() {
     resetGame();
     startGame();
 }
 
-// Reset Game
+/**
+ * Reset the run state to initial values.
+ * - Resets player/ghost positions and power mode flags
+ * - Restores pellets outside the ghost house
+ */
 function resetGame() {
     score = 0;
     lives = 3;
@@ -213,26 +268,35 @@ function resetGame() {
     updateUI();
 }
 
-// Update UI
+/**
+ * Update score, high-score, and lives in the HUD.
+ */
 function updateUI() {
     document.getElementById('score').textContent = score;
     document.getElementById('highScore').textContent = highScore;
     document.getElementById('lives').textContent = '❤️'.repeat(Math.max(0, lives));
 }
 
-// Show Overlay
+/**
+ * Show the overlay with a title and message.
+ */
 function showOverlay(title, message) {
     document.getElementById('overlayTitle').textContent = title;
     document.getElementById('overlayMessage').textContent = message;
     document.getElementById('gameOverlay').classList.remove('hidden');
 }
 
-// Hide Overlay
+/**
+ * Hide the overlay.
+ */
 function hideOverlay() {
     document.getElementById('gameOverlay').classList.add('hidden');
 }
 
-// Check if position is valid
+/**
+ * Check if a (potentially fractional) grid position can be occupied.
+ * Rounds to nearest cell for collision with walls and bounds.
+ */
 function isValidMove(x, y) {
     const gridX = Math.round(x);
     const gridY = Math.round(y);
@@ -244,7 +308,12 @@ function isValidMove(x, y) {
     return gameMap[gridY][gridX] !== 1;
 }
 
-// Move Pac-Man
+/**
+ * Advance Pac‑Man.
+ * - Applies `nextDirection` if the next tile is valid
+ * - Moves along the current direction on each frame
+ * - Handles tunnel wrap, mouth animation, and pellet collection
+ */
 function movePacman(deltaTime) {
     // Try to change direction
     const nextX = pacman.x + pacman.nextDirection.x * pacman.speed;
@@ -274,6 +343,8 @@ function movePacman(deltaTime) {
     }
     
     // Collect pellets
+    // NOTE: We round position to determine which cell Pac‑Man currently
+    // occupies; when colliding with a pellet/power pellet we convert to empty.
     const gridX = Math.round(pacman.x);
     const gridY = Math.round(pacman.y);
     
@@ -305,6 +376,8 @@ function movePacman(deltaTime) {
         }
         
         // Activate power mode
+        // While active, ghosts tagged `vulnerable` try to flee; timer blinks
+        // near the end to signal power mode is expiring.
         powerMode = true;
         powerModeTimer = POWER_MODE_DURATION;
         ghosts.forEach(ghost => ghost.vulnerable = true);
@@ -313,7 +386,13 @@ function movePacman(deltaTime) {
     }
 }
 
-// Move Ghosts
+/**
+ * Advance all ghosts.
+ * - Steps only when the coarse timer passes `GHOST_MOVE_INTERVAL`
+ * - Chooses a direction among non-opposite, valid options
+ *   • In power mode: maximizes distance from Pac‑Man (flee)
+ *   • Otherwise: minimizes distance to target (chase vs scatter)
+ */
 function moveGhosts(deltaTime) {
     ghostMoveTimer += deltaTime;
     
@@ -329,6 +408,7 @@ function moveGhosts(deltaTime) {
         ];
         
         // Remove opposite direction
+        // Prevents immediate 180° turns which look jittery and un-Pac‑Man-like.
         const validDirections = possibleDirections.filter(dir => {
             const testX = Math.round(ghost.x + dir.x);
             const testY = Math.round(ghost.y + dir.y);
@@ -380,7 +460,11 @@ function moveGhosts(deltaTime) {
     });
 }
 
-// Check Collisions
+/**
+ * Resolve interactions between Pac‑Man and ghosts.
+ * Uses Manhattan distance in grid space; collisions trigger either ghost eat
+ * (if vulnerable) or life loss.
+ */
 function checkCollisions() {
     ghosts.forEach(ghost => {
         const distance = Math.abs(ghost.x - pacman.x) + Math.abs(ghost.y - pacman.y);
@@ -418,7 +502,9 @@ function checkCollisions() {
     });
 }
 
-// Update Power Mode
+/**
+ * Countdown and end power mode. When expired, ghosts stop being vulnerable.
+ */
 function updatePowerMode(deltaTime) {
     if (powerMode) {
         powerModeTimer -= deltaTime;
@@ -429,7 +515,10 @@ function updatePowerMode(deltaTime) {
     }
 }
 
-// Draw Everything
+/**
+ * Render the current frame: background, map tiles, Pac‑Man, and ghosts.
+ * Visuals approximate the classic palette with subtle UI polish.
+ */
 function draw() {
     // Clear canvas
     ctx.fillStyle = '#000';
@@ -525,7 +614,10 @@ function draw() {
     });
 }
 
-// Game Loop
+/**
+ * Main loop tick.
+ * Computes `deltaTime`, updates simulation, renders, and queues next frame.
+ */
 function gameLoop(timestamp) {
     if (gameState !== GAME_STATES.PLAYING) return;
     
@@ -542,6 +634,7 @@ function gameLoop(timestamp) {
 }
 
 // Start
+// Prime the UI and render an initial frame before play begins.
 init();
 draw();
 

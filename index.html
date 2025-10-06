@@ -7,11 +7,14 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- App Shell Container: wraps header, HUD, game area, and controls -->
     <div class="container">
+        <!-- Branding / Title -->
         <header>
             <h1>🎮 PAC-MAN</h1>
         </header>
         
+        <!-- Heads-Up Display (HUD): runtime score, high score, lives -->
         <div class="game-info">
             <div class="info-item">
                 <span class="label">Score:</span>
@@ -27,6 +30,7 @@
             </div>
         </div>
 
+        <!-- Game Stage: canvas plus overlay for start/pause/game-over -->
         <div class="game-wrapper">
             <canvas id="gameCanvas"></canvas>
             <div id="gameOverlay" class="overlay">
@@ -42,6 +46,7 @@
             </div>
         </div>
 
+        <!-- Buttons: accessible alternatives to keyboard controls -->
         <div class="controls">
             <button id="startBtn" class="btn">Start Game</button>
             <button id="pauseBtn" class="btn">Pause</button>

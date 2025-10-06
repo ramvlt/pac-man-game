@@ -1,9 +1,18 @@
+/* ============================================================================
+   Pac-Man Game — Stylesheet
+   ----------------------------------------------------------------------------
+   This stylesheet styles the app shell, HUD, canvas stage, overlay, and
+   controls. The look aims for a modern neon-glow aesthetic inspired by the
+   classic palette while keeping good contrast and accessibility.
+   ========================================================================= */
+
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
 
+/* App Shell --------------------------------------------------------------- */
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
@@ -20,6 +29,7 @@ body {
     width: 100%;
 }
 
+/* Branding --------------------------------------------------------------- */
 header {
     text-align: center;
     margin-bottom: 20px;
@@ -45,6 +55,7 @@ header h1 {
     }
 }
 
+/* HUD (Score, High Score, Lives) ---------------------------------------- */
 .game-info {
     display: flex;
     justify-content: space-around;
@@ -73,6 +84,7 @@ header h1 {
     color: #ffd700;
 }
 
+/* Stage (Canvas + Overlay) ---------------------------------------------- */
 .game-wrapper {
     position: relative;
     display: flex;
@@ -137,6 +149,7 @@ header h1 {
     color: #ccc;
 }
 
+/* Controls --------------------------------------------------------------- */
 .controls {
     display: flex;
     justify-content: center;
@@ -172,6 +185,7 @@ header h1 {
     transform: none;
 }
 
+/* Responsive ------------------------------------------------------------- */
 @media (max-width: 768px) {
     header h1 {
         font-size: 2rem;
